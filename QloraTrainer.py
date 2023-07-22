@@ -1,3 +1,10 @@
+
+import os
+os.environ['TRANSFORMERS_CACHE'] = './temp'
+os.environ['HF_DATASETS_CACHE'] = './temp'
+os.environ['HF_HOME'] = './temp'
+os.environ['HUGGINGFACE_HUB_CACHE'] = './temp'
+os.environ["WANDB_DISABLED"] = "true"
 import torch
 import transformers
 from peft import (LoraConfig, PeftModel, get_peft_model,
@@ -7,6 +14,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 
 from data_processor.RawTextDataProcessor import RawTextDataProcessor
 from data_processor.VicunaDataProcessor import VicunaDataProcessor
+from data_processor.JsonDataProcessor import JsonDataProcessor
 
 
 class QloraTrainer:
@@ -30,7 +38,8 @@ class QloraTrainer:
 
         if "model_family" in self.config and self.config["model_family"] == "llama":
             tokenizer = LlamaTokenizer.from_pretrained(model_id)
-            model = LlamaForCausalLM.from_pretrained(model_id, quantization_config=bnb_config, device_map={"":0})
+            model = LlamaForCausalLM.from_pretrained(model_id, quantization_config=bnb_config, device_map={"":0},
+                                                     use_auth_token=True)
         else:
             tokenizer = AutoTokenizer.from_pretrained(model_id)
             model = AutoModelForCausalLM.from_pretrained(model_id, quantization_config=bnb_config, device_map={"":0})
@@ -84,6 +93,7 @@ class QloraTrainer:
                 learning_rate=config_dict["learning_rate"],
                 fp16=True,
                 logging_steps=config_dict["logging_steps"],
+                save_steps=self.config["save_steps"],
                 output_dir=self.config["trainer_output_dir"],
                 report_to="tensorboard",
                 #optim="adamw"
@@ -137,6 +147,8 @@ class QloraTrainer:
     def _setup_data_processor(self):
         if self.config["data"]["type"] == "vicuna":
             self.data_processor = VicunaDataProcessor(self.config, self.tokenizer)
+        if self.config["data"]["type"] == "json":
+            self.data_processor = JsonDataProcessor(self.config, self.tokenizer)
         elif self.config["data"]["type"] == "raw_text":
             self.data_processor = RawTextDataProcessor(self.config, self.tokenizer)
         else:
